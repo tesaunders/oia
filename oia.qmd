@@ -5,19 +5,40 @@ format: gfm
 ---
 
 ```{r}
+library(readxl)
 library(readr)
-library(forcats)
+library(lubridate)
 library(dplyr)
 library(ggplot2)
-library(purrr)
 ```
 
-Read data.
+Read data, save as csv, read back in, change column names.
 
 ```{r}
-oia <- read_csv("data_raw/OIAStatisticsAllData-v2.csv")
+oia <- read_excel("data_raw/OIAStatisticsAllData-v2.xlsx")
+
+write_csv(oia, "data_raw/OIAStatisticsAllData-v2.csv")
+rm(oia)
+oia <- read_csv("data_raw/OIAStatisticsAllData-v2.csv",
+                col_select = c(1:7, 9:10, 12, 14, 16, 19))
+
+names(oia) <- c("org", "type", "agency", "agency_pref", 
+                "survey_end", "oia_num", "oia_within_time", 
+                "oia_pub", "oia_ext", "oia_tran", "oia_ref", 
+                "ombud_complaints", "ombud_decisions")
+
+oia$survey_end <- ymd(oia$survey_end)
 ```
 
+Data contains duplicated entries for 2016 and 2017 in an apparent attempt to make it easier to compare the first two collection periods (12 months) with the other collection periods (6 months). This effectively doubles the OIA request numbers for these periods so the 'total' from each of these periods needs to be removed, leaving the total split evenly between the two 6 month periods. 
 
-
+```{r}
+# Want to remove these, WIP:
+remove <- oia |> 
+  filter(type != "NA" & survey_end == "2016-06-30" | survey_end == "2017-06-30") |> 
+  group_by(agency, survey_end) |> 
+  filter(oia_num == max(oia_num))
+  
+  
+```
 
