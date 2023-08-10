@@ -1,0 +1,23 @@
+---
+title: "OIA"
+author: "Tom Saunders"
+format: gfm
+---
+
+```{r}
+library(readr)
+library(forcats)
+library(dplyr)
+library(ggplot2)
+library(purrr)
+```
+
+Read data.
+
+```{r}
+oia <- read_csv("data_raw/OIAStatisticsAllData-v2.csv")
+```
+
+
+
+
