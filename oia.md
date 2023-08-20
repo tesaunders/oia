@@ -45,17 +45,10 @@ total split evenly between the two 6 month periods.
 
 ``` r
 remove <- oia |> 
-  filter(type != "NA" & survey_end == "2016-06-30" | survey_end == "2017-06-30") |> 
-  group_by(agency, survey_end) |> 
-  filter(oia_num == max(oia_num))
-```
+  filter(type != "NA" & survey_end %in% c("2016-06-30", "2017-06-30")) |> 
+  group_by(agency, survey_end) |>
+  filter(oia_num == max(oia_num)) 
 
-    Warning: There was 1 warning in `filter()`.
-    ℹ In argument: `oia_num == max(oia_num)`.
-    Caused by warning in `max()`:
-    ! no non-missing arguments to max; returning -Inf
-
-``` r
 oia <- anti_join(oia, remove)
 ```
 
@@ -81,8 +74,10 @@ agency_totals <- oia |>
     transfers = sum(oia_tran, na.rm = TRUE) / sum(oia_num, na.rm = TRUE),
     refusals = sum(oia_ref, na.rm = TRUE) / sum(oia_num, na.rm = TRUE),
     ombud_com = sum(ombud_complaints, na.rm = TRUE) / sum(oia_num, na.rm = TRUE),
-    ombud_dec = sum(ombud_decisions, na.rm = TRUE) / sum(ombud_complaints, na.rm = TRUE),
-  )
+    ombud_dec = sum(ombud_decisions, na.rm = TRUE) / sum(ombud_complaints, na.rm = TRUE)) |> 
+  arrange(desc(requests))
+
+top5 <- agency_totals |> slice_head(n = 5) 
 ```
 
 Pull out year from date column.
@@ -92,7 +87,37 @@ oia$survey_end <- ymd(oia$survey_end)
 oia$year <- as_factor(year(oia$survey_end))
 ```
 
-Look at trend of requests over time for NZ Police.
+Requests (and timeframe compliance) over time for busiest agencies.
+
+``` r
+trend <- oia |> 
+  filter(agency %in% top5$agency) |> 
+  group_by(agency,year) |> 
+  summarise(
+    total_oia = sum(oia_num, na.rm = TRUE),
+    within_time = sum(oia_within_time, na.rm = TRUE) / total_oia,
+  ) |> 
+  ungroup() |>  
+  mutate(agency = fct_reorder(agency, within_time, tail, n = 1, .desc = TRUE)) # sorts agency by final value on timeseries for legend readability
+```
+
+    `summarise()` has grouped output by 'agency'. You can override using the
+    `.groups` argument.
+
+``` r
+ggplot(trend, aes(x = year, y = within_time, group = agency, colour = agency)) +
+  geom_line() +
+  theme_classic() +
+  labs(title = "OIA requests handled within statutory timeframe by year",
+       colour = "Agency") +
+  ylab("") +
+  scale_y_continuous(labels = scales::percent) 
+```
+
+![](figs/timeframe-year-1.png)
+
+Look at trend of requests over time for NZ Police. Are pre-2019 numbers
+accurate?
 
 ``` r
 oia |> 

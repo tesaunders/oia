@@ -49,9 +49,9 @@ Data contains duplicated entries for 2016 and 2017 in an apparent attempt to mak
 ```{r}
 #| message: false
 remove <- oia |> 
-  filter(type != "NA" & survey_end == "2016-06-30" | survey_end == "2017-06-30") |> 
-  group_by(agency, survey_end) |> 
-  filter(oia_num == max(oia_num))
+  filter(type != "NA" & survey_end %in% c("2016-06-30", "2017-06-30")) |> 
+  group_by(agency, survey_end) |>
+  filter(oia_num == max(oia_num)) 
 
 oia <- anti_join(oia, remove)
 ```
@@ -75,8 +75,10 @@ agency_totals <- oia |>
     transfers = sum(oia_tran, na.rm = TRUE) / sum(oia_num, na.rm = TRUE),
     refusals = sum(oia_ref, na.rm = TRUE) / sum(oia_num, na.rm = TRUE),
     ombud_com = sum(ombud_complaints, na.rm = TRUE) / sum(oia_num, na.rm = TRUE),
-    ombud_dec = sum(ombud_decisions, na.rm = TRUE) / sum(ombud_complaints, na.rm = TRUE),
-  )
+    ombud_dec = sum(ombud_decisions, na.rm = TRUE) / sum(ombud_complaints, na.rm = TRUE)) |> 
+  arrange(desc(requests))
+
+top5 <- agency_totals |> slice_head(n = 5) 
 ```
 
 Pull out year from date column.
@@ -86,9 +88,34 @@ oia$survey_end <- ymd(oia$survey_end)
 oia$year <- as_factor(year(oia$survey_end))
 ```
 
-Look at trend of requests over time for NZ Police.
+Requests (and timeframe compliance) over time for busiest agencies.
 
-```{r nz-police-request-trend}
+```{r}
+#| label: timeframe-year
+trend <- oia |> 
+  filter(agency %in% top5$agency) |> 
+  group_by(agency,year) |> 
+  summarise(
+    total_oia = sum(oia_num, na.rm = TRUE),
+    within_time = sum(oia_within_time, na.rm = TRUE) / total_oia,
+  ) |> 
+  ungroup() |>  
+  mutate(agency = fct_reorder(agency, within_time, tail, n = 1, .desc = TRUE)) # sorts agency by final value on timeseries for legend readability
+
+ggplot(trend, aes(x = year, y = within_time, group = agency, colour = agency)) +
+  geom_line() +
+  theme_classic() +
+  labs(title = "OIA requests handled within statutory timeframe by year",
+       colour = "Agency") +
+  ylab("") +
+  scale_y_continuous(labels = scales::percent) 
+
+```
+
+Look at trend of requests over time for NZ Police. Are pre-2019 numbers accurate?
+
+```{r}
+#| label: nz-police-request-trend
 oia |> 
   filter(agency == "New Zealand Police") |> 
   group_by(year) |> 
@@ -97,6 +124,9 @@ oia |>
   geom_col() +
   theme_classic()
 ```
+
+
+
 
 
 
