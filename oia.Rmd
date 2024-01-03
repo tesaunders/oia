@@ -1,15 +1,11 @@
 ---
 title: "OIA"
 author: "Tom Saunders"
-format: gfm
-knitr:
-  opts_chunk:
-    fig.path: figs/
+output: html_document
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '/docs/index.html')) })
 ---
 
-```{r}
-#| warning: false
-#| message: false
+```{r, warning=FALSE, message=FALSE}
 library(readxl)
 library(readr)
 library(lubridate)
@@ -18,36 +14,35 @@ library(forcats)
 library(ggplot2)
 ```
 
-Read data, save as csv, read back in.
+```{r, message=FALSE}
+# Data naming conventions appear to change so read in whatever excel file is in the `data` directory.
 
-```{r}
-#| message: false
-oia <- read_excel("data/OIAStatisticsAllData-v2.xlsx",
+file_path = dir("data/", pattern = '\\.xlsx$', full.names = TRUE)
+
+oia <- read_excel(file_path,
                   col_types = c("numeric", "text", "text", "text", 
                                 "guess", "numeric", "numeric", "numeric", 
                                 "numeric", "numeric", "numeric", "numeric",
                                 "numeric", "numeric", "numeric", "numeric",
                                 "numeric", "numeric", "numeric"))
+# Select relevant columns
 
-write_csv(oia, "data/OIAStatisticsAllData-v2.csv")
-rm(oia)
-oia <- read_csv("data/OIAStatisticsAllData-v2.csv",
-                col_select = c(1:7, 9:10, 12, 14, 16, 19))
+oia <- oia |> 
+  select(c(1:7, 9:10, 12, 14, 16, 19))
 ```
 
-change column names, convert `survey_end` to date.
-
 ```{r}
+# Change column names, convert `survey_end` to date.
+
 names(oia) <- c("org", "type", "agency", "agency_pref", 
                 "survey_end", "oia_num", "oia_within_time", 
                 "oia_pub", "oia_ext", "oia_tran", "oia_ref", 
                 "ombud_complaints", "ombud_decisions")
 ```
 
-Data contains duplicated entries for 2016 and 2017 in an apparent attempt to make it easier to compare the first two collection periods (12 months) with the other collection periods (6 months). This effectively doubles the OIA request numbers for these periods so the 'total' from each of these periods needs to be removed, leaving the total split evenly between the two 6 month periods. 
+```{r, message=FALSE}
+# Data contains duplicated entries for 2016 and 2017 in an apparent attempt to make it easier to compare the first two collection periods (12 months) with the other collection periods (6 months). This effectively doubles the OIA request numbers for these periods so the 'total' from each of these periods needs to be removed, leaving the total split evenly between the two 6 month periods. 
 
-```{r}
-#| message: false
 remove <- oia |> 
   filter(type != "NA" & survey_end %in% c("2016-06-30", "2017-06-30")) |> 
   group_by(agency, survey_end) |>
@@ -56,16 +51,16 @@ remove <- oia |>
 oia <- anti_join(oia, remove)
 ```
 
-Remove rows where OrgID (org) is 0 as these rows appear to again be totals based on Agency Type.
-
 ```{r}
+# Remove rows where OrgID (org) is 0 as these rows appear to again be totals based on Agency Type.
+
 oia <- oia |> 
   filter(org != 0)
 ```
 
-For each agency, get total requests, proportion handled within statutory timeframe, and proportions of request extensions, transfers, refusals, ombudsman complaints, and ombudsman decisions from those complaints.
-
 ```{r}
+# For each agency, get total requests, proportion handled within statutory timeframe, and proportions of request extensions, transfers, refusals, ombudsman complaints, and ombudsman decisions from those complaints.
+
 agency_totals <- oia |> 
   group_by(agency) |> 
   summarise(
@@ -81,17 +76,17 @@ agency_totals <- oia |>
 top5 <- agency_totals |> slice_head(n = 5) 
 ```
 
-Pull out year from date column.
 
 ```{r}
+# Pull out year from date column.
+
 oia$survey_end <- ymd(oia$survey_end)
 oia$year <- as_factor(year(oia$survey_end))
 ```
 
-Requests (and timeframe compliance) over time for busiest agencies.
-
 ```{r}
-#| label: timeframe-year
+# Requests (and timeframe compliance) over time for busiest agencies.
+
 trend <- oia |> 
   filter(agency %in% top5$agency) |> 
   group_by(agency,year) |> 
@@ -112,10 +107,9 @@ ggplot(trend, aes(x = year, y = within_time, group = agency, colour = agency)) +
 
 ```
 
-Look at trend of requests over time for NZ Police. Are pre-2019 numbers accurate?
-
 ```{r}
-#| label: nz-police-request-trend
+# Look at trend of requests over time for NZ Police. Are pre-2019 numbers accurate?
+
 oia |> 
   filter(agency == "New Zealand Police") |> 
   group_by(year) |> 
