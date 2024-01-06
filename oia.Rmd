@@ -12,10 +12,11 @@ library(lubridate)
 library(dplyr)
 library(forcats)
 library(ggplot2)
+library(stringr)
 ```
 
 ```{r, message=FALSE}
-# Data naming conventions appear to change so read in whatever excel file is in the `data` directory.
+# Data file naming conventions appear to change so read in whatever excel file is in the `data` directory.
 
 file_path = dir("data/", pattern = '\\.xlsx$', full.names = TRUE)
 
@@ -27,12 +28,12 @@ oia <- read_excel(file_path,
                                 "numeric", "numeric", "numeric"))
 # Select relevant columns
 
-oia <- oia |> 
+oia <- oia |>
   select(c(1:7, 9:10, 12, 14, 16, 19))
 ```
 
 ```{r}
-# Change column names, convert `survey_end` to date.
+# Change column names
 
 names(oia) <- c("org", "type", "agency", "agency_pref", 
                 "survey_end", "oia_num", "oia_within_time", 
@@ -41,7 +42,7 @@ names(oia) <- c("org", "type", "agency", "agency_pref",
 ```
 
 ```{r, message=FALSE}
-# Data contains duplicated entries for 2016 and 2017 in an apparent attempt to make it easier to compare the first two collection periods (12 months) with the other collection periods (6 months). This effectively doubles the OIA request numbers for these periods so the 'total' from each of these periods needs to be removed, leaving the total split evenly between the two 6 month periods. 
+# Handle duplicate 2016/2017 data
 
 remove <- oia |> 
   filter(type != "NA" & survey_end %in% c("2016-06-30", "2017-06-30")) |> 
@@ -52,7 +53,7 @@ oia <- anti_join(oia, remove)
 ```
 
 ```{r}
-# Remove rows where OrgID (org) is 0 as these rows appear to again be totals based on Agency Type.
+# Remove rows where OrgID (org) is 0 as these rows appear to contain totals based on Agency Type.
 
 oia <- oia |> 
   filter(org != 0)
@@ -72,8 +73,6 @@ agency_totals <- oia |>
     ombud_com = sum(ombud_complaints, na.rm = TRUE) / sum(oia_num, na.rm = TRUE),
     ombud_dec = sum(ombud_decisions, na.rm = TRUE) / sum(ombud_complaints, na.rm = TRUE)) |> 
   arrange(desc(requests))
-
-top5 <- agency_totals |> slice_head(n = 5) 
 ```
 
 
@@ -85,10 +84,17 @@ oia$year <- as_factor(year(oia$survey_end))
 ```
 
 ```{r}
-# Requests (and timeframe compliance) over time for busiest agencies.
+# Check top 5 agencies for numbers of requests
+
+top5 <- agency_totals |> slice_head(n = 5)
+top5
+```
+
+```{r}
+# Requests (and timeframe compliance) over time for top 5 agencies
 
 trend <- oia |> 
-  filter(agency %in% top5$agency) |> 
+  filter(agency %in% top5$agency & year != "2023") |> 
   group_by(agency,year) |> 
   summarise(
     total_oia = sum(oia_num, na.rm = TRUE),
@@ -108,10 +114,11 @@ ggplot(trend, aes(x = year, y = within_time, group = agency, colour = agency)) +
 ```
 
 ```{r}
-# Look at trend of requests over time for NZ Police. Are pre-2019 numbers accurate?
+# Look at trend of requests over time for NZ Police. 
+# See /docs/IR-01-23-25549.pdf for an explanation of the discrepancy.
 
 oia |> 
-  filter(agency == "New Zealand Police") |> 
+  filter(agency == "New Zealand Police" & year != "2023") |> 
   group_by(year) |> 
   tally(oia_num) |> 
   ggplot(aes(x = year, y = n)) +
